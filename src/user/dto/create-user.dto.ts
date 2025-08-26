@@ -12,6 +12,7 @@ import {
 } from 'class-validator';
 import { Role, activeEnum, genderEnum } from '../../../generated/prisma';
 export class CreateUserDto {
+  //c
   @IsString()
   @MinLength(3, { message: 'name be more than 3 digits' })
   @MaxLength(20)
