@@ -1,3 +1,4 @@
+import { genderEnum, Role } from '@prisma/client';
 import {
   IsString,
   IsEmail,
@@ -9,8 +10,9 @@ import {
   IsEnum,
   length,
   IsUrl,
+  IsBoolean,
 } from 'class-validator';
-import { Role, activeEnum, genderEnum } from '../../../generated/prisma';
+
 export class CreateUserDto {
   //c
   @IsString()
@@ -48,9 +50,9 @@ export class CreateUserDto {
   @IsOptional()
   adress?: string;
 
-  @IsEnum(activeEnum)
+  @IsBoolean()
   @IsOptional()
-  active?: activeEnum;
+  active?: boolean;
 
   @IsString()
   @IsOptional()

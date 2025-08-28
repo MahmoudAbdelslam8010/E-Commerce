@@ -1,37 +1,189 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  HttpException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../prisma/prisma.service';
-
+import { request } from 'express';
+import * as bcrypt from 'bcrypt';
+import { stat } from 'fs';
 @Injectable()
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}
-
+  saltOrRounds = 10;
   async create(createUserDto: CreateUserDto) {
-    const { name, email, password } = createUserDto;
-    const x = await this.prisma.user.create({
-      data: {
-        name,
-        email,
-        password,
+    const isEmailExist = await this.prisma.user.findUnique({
+      where: {
+        email: createUserDto.email.toLowerCase().trim(),
       },
     });
-    return x;
+    if (isEmailExist) {
+      throw new ConflictException('user is already exist , use another one ');
+    }
+    if (createUserDto.password.length < 8) {
+      throw new BadRequestException(
+        'Password must be at least 8 characters long',
+      );
+    }
+
+    const hashPassword = await bcrypt.hash(
+      createUserDto.password,
+      this.saltOrRounds,
+    );
+    const editFields = {
+      password: hashPassword,
+      email: createUserDto.email.toLowerCase().trim(),
+      name: createUserDto.name.trim(),
+    };
+    const NewUser = await this.prisma.user.create({
+      data: { ...createUserDto, ...editFields },
+    });
+    const { password: _, ...result } = NewUser;
+    return {
+      status: 201,
+      message: `${createUserDto.Role} Created successfully`,
+      data: result,
+    };
   }
 
-  findAll() {
-    return `This action returns all user`;
+  async findAll(query: any) {
+    const { limit = 100000, skip = 0, sort = 'asc', name, email, Role } = query;
+    if (Number.isNaN(Number(+limit))) {
+      throw new HttpException('please enter valid limit', 400);
+    }
+    if (Number.isNaN(Number(+skip))) {
+      throw new HttpException('please enter valid skip number ', 400);
+    }
+    if (!['asc', 'desc'].includes(sort)) {
+      throw new HttpException('Invalid sort , asc & desc only valid', 400);
+    }
+    const where: any = {};
+    if (name) {
+      where.name = {
+        contains: name,
+        mode: 'insensitive',
+      };
+    }
+    if (email) {
+      where.email = {
+        contains: email,
+        mode: 'insensitive',
+      };
+    }
+    //    if (Role) {
+    //    where.Role = {
+    //    contains: Role,
+    //  mode: 'insensitive',
+    //};
+    //}
+    const Users = await this.prisma.user.findMany({
+      where,
+      skip: Number(skip),
+      take: Number(limit),
+      orderBy: {
+        name: sort,
+      },
+    });
+    const result = Users.map(({ password, ...rest }) => rest);
+    const totalCount = await this.prisma.user.count({ where });
+    return {
+      status: 200,
+      message: `found ${Users.length} Users`,
+      data: result,
+      pagination: {
+        total_users: totalCount,
+        pageNo: Math.floor(Number(skip) / Number(limit) + 1),
+        skip: Number(skip),
+        limit:
+          Number(limit) === 100000
+            ? 'there is no specific limit'
+            : Number(limit),
+        hasMore: Number(skip) + Number(limit) < totalCount,
+        totalPages: Math.ceil(totalCount / Number(limit)),
+      },
+    };
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} user`;
+  async findOne(id: string) {
+    const User = await this.prisma.user.findFirst({
+      where: { id },
+    });
+    if (!User) {
+      throw new NotFoundException('the user is not found');
+    }
+    const { password, ...FoundedUser } = User;
+    return {
+      status: 200,
+      data: FoundedUser,
+    };
   }
 
-  update(id: number, updateUserDto: UpdateUserDto) {
-    return `This action updates a #${id} user`;
+  async update(id: string, updateUserDto: UpdateUserDto) {
+    const userExist = await this.prisma.user.findUnique({
+      where: { id },
+    });
+    if (!userExist) {
+      throw new NotFoundException('User not found');
+    }
+    let user = {
+      ...updateUserDto,
+    };
+
+    if (updateUserDto.password) {
+      if (updateUserDto.password.length < 8) {
+        throw new BadRequestException(
+          'Password must be at least 8 characters long',
+        );
+      }
+      const password = await bcrypt.hash(
+        updateUserDto.password,
+        this.saltOrRounds,
+      );
+      user = {
+        ...user,
+        password,
+      };
+    }
+    if (updateUserDto.name) {
+      updateUserDto.name = updateUserDto.name.trim();
+    }
+    const updatedUser = await this.prisma.user.update({
+      where: { id },
+      data: updateUserDto,
+    });
+
+    const { password: _, ...userWithoutPassword } = updatedUser;
+    return {
+      status: 200,
+      message: 'User updated successfully',
+      data: userWithoutPassword,
+    };
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} user`;
+  async remove(id: string) {
+    const checkUser = await this.prisma.user.findFirst({
+      where: {
+        id: id,
+      },
+    });
+    if (!checkUser) {
+      throw new NotFoundException('User is not found');
+    }
+    await this.prisma.user.update({
+      where: {
+        id,
+      },
+      data: {
+        active: false,
+      },
+    });
+    return {
+      status: 200,
+      message: `${checkUser.Role} deleted successfully`,
+    };
   }
 }

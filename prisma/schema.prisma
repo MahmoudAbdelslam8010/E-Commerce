@@ -16,10 +16,10 @@ enum Role{
   Admin
   User
 }
-enum activeEnum{
-  False
-  True
-}
+// enum activeEnum{
+//   False
+//   True
+// }
 enum genderEnum{
   Male
   Female
@@ -34,7 +34,7 @@ avatar String?
 age Int?
 phone String? @db.VarChar(11)// handle length 11
 adress String?
-active activeEnum?
+active Boolean @default(true)
 verificationCode String?
 gender genderEnum?
 updatedAt DateTime @updatedAt
