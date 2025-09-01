@@ -4,13 +4,12 @@ import {
   HttpException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../prisma/prisma.service';
-import { request } from 'express';
 import * as bcrypt from 'bcrypt';
-import { stat } from 'fs';
 @Injectable()
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}
@@ -23,11 +22,6 @@ export class UserService {
     });
     if (isEmailExist) {
       throw new ConflictException('user is already exist , use another one ');
-    }
-    if (createUserDto.password.length < 8) {
-      throw new BadRequestException(
-        'Password must be at least 8 characters long',
-      );
     }
 
     const hashPassword = await bcrypt.hash(
@@ -74,12 +68,6 @@ export class UserService {
         mode: 'insensitive',
       };
     }
-    //    if (Role) {
-    //    where.Role = {
-    //    contains: Role,
-    //  mode: 'insensitive',
-    //};
-    //}
     const Users = await this.prisma.user.findMany({
       where,
       skip: Number(skip),
@@ -184,6 +172,69 @@ export class UserService {
     return {
       status: 200,
       message: `${checkUser.Role} deleted successfully`,
+    };
+  }
+  async getMe(UserId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: UserId,
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('User Is Not Found');
+    }
+    const { password, ...result } = user;
+
+    return {
+      status: 200,
+      message: 'done',
+      data: result,
+    };
+  }
+  async updateMe(UserId: string, updateUserDto: UpdateUserDto) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: UserId,
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('User Is Not Found');
+    }
+    if (updateUserDto.Role) {
+      throw new UnauthorizedException();
+    }
+    const updatedUser = await this.prisma.user.update({
+      where: { id: UserId },
+      data: updateUserDto,
+    });
+    const { password, ...result } = updatedUser;
+    return {
+      status: 200,
+      message: 'User updated successfully',
+      data: result,
+    };
+  }
+
+  async deleteMe(UserId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: UserId,
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('User Is Not Found');
+    }
+    const softDelete = await this.prisma.user.update({
+      where: {
+        id: UserId,
+      },
+      data: {
+        active: false,
+      },
+    });
+    return {
+      status: 200,
+      message: 'deleted successfully',
     };
   }
 }

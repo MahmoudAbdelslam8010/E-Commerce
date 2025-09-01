@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  HttpException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -19,7 +20,8 @@ export class AuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const token = this.extractTokenFromHeader(request);
-    const isAdmin = this.reflactor.get(Roles, context.getHandler());
+    const roles = this.reflactor.get(Roles, context.getClass());
+    console.log(token);
     if (!token) {
       throw new UnauthorizedException();
     }
@@ -27,15 +29,17 @@ export class AuthGuard implements CanActivate {
       const payload = await this.jwtService.verifyAsync(token, {
         secret: process.env.JWT_SECRET,
       });
+      console.log(payload);
       // 💡 We're assigning the payload to the request object here
       // so that we can access it in our route handlers
-
-      if (!payload.admin) {
-        throw new UnauthorizedException('this end point for the admin');
+      if (!payload.role || !roles.includes(payload.role) || !payload.id) {
+        throw new HttpException('this from if', 403);
       }
+
       request['user'] = payload;
-    } catch {
-      throw new UnauthorizedException();
+    } catch (Err) {
+      console.log(Err);
+      throw new HttpException('this from catch', 403);
     }
     return true;
   }
