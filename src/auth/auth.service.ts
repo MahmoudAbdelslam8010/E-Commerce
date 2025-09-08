@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  HttpException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -9,11 +10,16 @@ import { UpdateAuthDto } from './dto/update-auth.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { ForgetPasswordDto } from './dto/forgetPassword-auth.dto';
+import { MailerService } from '@nestjs-modules/mailer';
+import { VerifyCodeDto } from './dto/verifyCode-auth.dto';
+import { signInDto } from './dto/signIn-auth.dto';
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly mailerService: MailerService,
   ) {}
   saltOrRounds = 10;
 
@@ -54,17 +60,17 @@ export class AuthService {
       token,
     };
   }
-  async SignIn(createAuthDto: CreateAuthDto) {
+  async SignIn(signDto: signInDto) {
     const user = await this.prisma.user.findUnique({
       where: {
-        email: createAuthDto.email,
+        email: signDto.email,
       },
     });
     if (!user) {
       throw new NotFoundException('user is not found');
     }
     const passwordIsCorrect = await bcrypt.compare(
-      createAuthDto.password,
+      signDto.password,
       user.password,
     );
     if (!passwordIsCorrect) {
@@ -82,6 +88,93 @@ export class AuthService {
       status: 200,
       message: `Welcome ${user.name}`,
       token,
+    };
+  }
+  async forgetPassword(forgetPasswordDto: ForgetPasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        email: forgetPasswordDto.email,
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('user is not found');
+    }
+    const code = Math.floor(Math.random() * 1000000)
+      .toString()
+      .padStart(6, '0');
+    await this.prisma.user.update({
+      where: {
+        email: forgetPasswordDto.email,
+      },
+      data: {
+        verificationCode: code,
+      },
+    });
+    const htmlMessage = `<div>
+      <h1>Forgot your password? If you didn't forget your password, please ignore this email!</h1>
+      <p>Use the following code to verify your account: <h3 style="color: red; font-weight: bold; text-align: center">${code}</h3></p>
+      <h6 style="font-weight: bold">Ecommerce-Nest.JS</h6>
+    </div>`;
+    await this.mailerService.sendMail({
+      from: `Test Spam Sanadi <${process.env.EMAIL_USERNAME}>`,
+      to: forgetPasswordDto.email,
+      subject: `Test Spam Sanadi - Reset Password`,
+      html: htmlMessage,
+    });
+    return {
+      status: 200,
+      message: `Code sent successfully on your ${forgetPasswordDto.email}`,
+    };
+  }
+  async verifyCode(verifyCodeDto: VerifyCodeDto) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        email: verifyCodeDto.email,
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('user is not found');
+    }
+    if (user.verificationCode !== verifyCodeDto.code) {
+      throw new UnauthorizedException('invalid code');
+    }
+    await this.prisma.user.update({
+      where: {
+        email: verifyCodeDto.email,
+      },
+      data: {
+        verificationCode: verifyCodeDto.code,
+      },
+    });
+    return {
+      status: 200,
+      message: 'Code verified successfully, go to change your password',
+    };
+  }
+  async changePassword(changePasswordDto: signInDto) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        email: changePasswordDto.email,
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('user is not found');
+    }
+    const hashedPassword = await bcrypt.hash(
+      changePasswordDto.password,
+      this.saltOrRounds,
+    );
+    await this.prisma.user.update({
+      where: {
+        email: changePasswordDto.email,
+      },
+      data: {
+        password: hashedPassword,
+      },
+    });
+    return {
+      status: 200,
+      message: 'your password changed successfully',
     };
   }
 }

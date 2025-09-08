@@ -7,37 +7,69 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 //
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-enum Role{
+
+enum Role {
   Admin
   User
 }
+
 // enum activeEnum{
 //   False
 //   True
 // }
-enum genderEnum{
+enum genderEnum {
   Male
   Female
 }
-model User {
-id  String  @id @default(uuid())
-name  String  // handle min 3 and max 20 from command line
-email String @unique
-password String // handle min and max 3 -20
-Role  Role @default(User)
-avatar String?
-age Int?
-phone String? @db.VarChar(11)// handle length 11
-adress String?
-active Boolean @default(true)
-verificationCode String?
-gender genderEnum?
-updatedAt DateTime @updatedAt
-createdAt DateTime @default(now())
 
+model User {
+  id               String      @id @default(uuid())
+  name             String // handle min 3 and max 20 from command line
+  email            String      @unique
+  password         String // handle min and max 3 -20
+  Role             Role        @default(User)
+  avatar           String?
+  age              Int?
+  phone            String?     @db.VarChar(11) // handle length 11
+  adress           String?
+  active           Boolean     @default(true)
+  verificationCode String?
+  gender           genderEnum?
+  updatedAt        DateTime    @updatedAt
+  createdAt        DateTime    @default(now())
+}
+
+model Category {
+  id            String        @id @default(uuid())
+  name          String        @unique
+  image         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  active        Boolean       @default(true)
+  subCategories SubCategory[]
+}
+
+model SubCategory {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  categoryId String
+  active     Boolean  @default(true)
+  category   Category @relation(fields: [categoryId], references: [id])
+}
+
+model Brand {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  image     String?
+  createdAt DateTime @default(now())
+  active    Boolean  @default(true)
+  updatedAt DateTime @updatedAt
 }

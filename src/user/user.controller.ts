@@ -68,7 +68,7 @@ export class UserMeController {
   async updateMe(@Request() req, @Body() updateUserDto: UpdateUserDto) {
     return await this.userService.updateMe(req.user.id, updateUserDto);
   }
-  @Patch()
+  @Delete()
   async deleteMe(@Request() req) {
     return await this.userService.deleteMe(req.user.id);
   }

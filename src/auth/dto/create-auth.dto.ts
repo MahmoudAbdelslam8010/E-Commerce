@@ -1,10 +1,9 @@
-import { genderEnum, Role } from '@prisma/client';
+import { genderEnum } from '@prisma/client';
 import {
   IsBoolean,
   IsEmail,
   IsEnum,
   IsInt,
-  isNotEmpty,
   IsOptional,
   IsString,
   IsUrl,
